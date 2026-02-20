@@ -45,7 +45,7 @@ Files:
 Clone the repo and run the installer:
 
 ```bash
-git clone https://github.com/khrupov/claude-skill-getvideo.git
+git clone https://github.com/dkh-ai/claude-skill-getvideo.git
 cd claude-skill-getvideo
 chmod +x setup.sh
 ./setup.sh
