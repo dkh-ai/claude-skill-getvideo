@@ -4,3 +4,9 @@
 *.mp3
 *.wav
 *.webm
+
+# SIM (Self-Improving Machine) data
+.learnings/sessions/
+.learnings/metrics/
+.learnings/.session-start-commit
+.learnings/.session-start-time

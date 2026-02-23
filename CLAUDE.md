@@ -2,7 +2,7 @@
 
 ## Обзор
 
-Claude Code скилл для скачивания видео с любых платформ (YouTube, Vimeo, Twitter и др.), создания структурированной папки с метаданными и опциональной транскрибации через OpenAI Whisper с AI-анализом.
+Claude Code скилл для скачивания видео с любых платформ (YouTube, Vimeo, Twitter и др.), создания структурированной папки с метаданными и опциональной транскрибации через mlx-whisper с AI-анализом.
 
 Это **не приложение**, а скилл для Claude Code — набор инструкций в формате SKILL.md, которые Claude выполняет при вызове `/getvideo`.
 
@@ -16,8 +16,8 @@ Claude Code скилл для скачивания видео с любых пл
 |------------|-----------|-------------|
 | yt-dlp | Загрузка видео, получение метаданных (`--dump-json`) | обязателен |
 | ffmpeg | Извлечение аудио из видео (m4a) | обязателен |
-| whisper | Транскрибация аудио (модель turbo) | опционален |
-| python3 | Среда для whisper | опционален |
+| mlx-whisper | Транскрибация аудио (модель turbo, Apple Silicon) | опционален |
+| python3 | Среда для mlx-whisper | опционален |
 
 **Установщик:** `setup.sh` — bash-скрипт, ~320 строк
 
@@ -40,7 +40,7 @@ claude-skill-getvideo/
 1. `setup.sh` создаёт symlink: `~/.claude/skills/getvideo` → `<repo>/skills/getvideo`
 2. Claude Code обнаруживает скилл по YAML frontmatter в SKILL.md
 3. При вызове `/getvideo` Claude читает SKILL.md и выполняет инструкции
-4. Claude использует bash-команды (yt-dlp, ffmpeg, whisper) через Bash tool
+4. Claude использует bash-команды (yt-dlp, ffmpeg, mlx_whisper) через Bash tool
 5. Результаты сохраняются в `~/getvideo/YYYYMMDD-source-title/`
 
 ## Ключевые компоненты
@@ -59,7 +59,7 @@ claude-skill-getvideo/
 1. **SETUP** — валидация URL, получение метаданных через `yt-dlp --dump-json`, создание папки
 2. **DOWNLOAD** — загрузка видео через yt-dlp в формате mp4
 3. **ABOUT** — генерация about.md с метаданными, описанием, главами, тегами
-4. **TRANSCRIBE** (опционально) — ffmpeg → whisper → AI-анализ через Task subagent
+4. **TRANSCRIBE** (опционально) — ffmpeg → mlx-whisper → AI-анализ через Task subagent
 
 ### setup.sh
 
@@ -68,7 +68,7 @@ claude-skill-getvideo/
 - `detect_os()` — определение macOS/Linux
 - `has()` — проверка наличия команды
 - `confirm()` — интерактивное подтверждение (y/N)
-- `install_brew/ytdlp/ffmpeg/python/whisper()` — установка зависимостей
+- `install_brew/ytdlp/ffmpeg/python/whisper()` — установка зависимостей (whisper → mlx-whisper)
 - `fix_ssl_macos()` — исправление SSL-сертификатов Python на macOS
 - `setup_symlink()` — создание/обновление symlink в `~/.claude/skills/`
 - `print_summary()` — итоговый отчёт с верификацией
@@ -88,7 +88,7 @@ claude-skill-getvideo/
 ├── video.mp4              # Скачанное видео
 ├── about.md               # Метаданные (таблица + описание + главы + теги)
 ├── audio.m4a              # Временный аудио (удаляется по запросу)
-├── transcript_source.md   # Сырой транскрипт whisper
+├── transcript_source.md   # Сырой транскрипт mlx-whisper
 └── transcript_output.md   # AI-анализ: TLDR, идеи, инсайты, TODO
 ```
 
@@ -102,17 +102,17 @@ claude-skill-getvideo/
 |----------|----------|------------|
 | Выходная директория | `~/getvideo/` | SKILL.md, Phase 1 |
 | Формат видео | `bestvideo[ext=mp4]+bestaudio[ext=m4a]/best` | SKILL.md, Phase 2 |
-| Модель whisper | `turbo` | SKILL.md, Phase 4 |
-| Таймаут whisper | 600000ms (10 мин) | SKILL.md, Phase 4 |
+| Модель mlx-whisper | `mlx-community/whisper-turbo` | SKILL.md, Phase 4 |
+| Таймаут mlx-whisper | 600000ms (10 мин) | SKILL.md, Phase 4 |
 | Язык транскрибации | `auto` | SKILL.md, Phase 4 |
 | Язык AI-анализа | Русский | SKILL.md, Phase 4 prompt |
 
 ## Расширение функционала
 
-### Как изменить модель whisper
+### Как изменить модель mlx-whisper
 
-В `skills/getvideo/SKILL.md`, Phase 4, секция "Transcribe with whisper":
-- Заменить `--model turbo` на `--model base/small/medium/large`
+В `skills/getvideo/SKILL.md`, Phase 4, секция "Transcribe with mlx-whisper":
+- Заменить `--model mlx-community/whisper-turbo` на другую модель из mlx-community
 
 ### Как изменить язык AI-анализа
 
@@ -134,9 +134,9 @@ claude-skill-getvideo/
 
 ## Известные ограничения
 
-- **macOS SSL** — Python на macOS может не иметь SSL-сертификатов, нужен отдельный fix
+- **Apple Silicon only** — mlx-whisper работает только на Apple Silicon (M1+)
 - **yt-dlp устаревание** — YouTube часто ломает API, требуется `yt-dlp -U`
-- **Whisper RAM** — модели turbo/medium требуют значительного объёма RAM для длинных видео
+- **mlx-whisper RAM** — модели turbo требуют значительного объёма RAM для длинных видео
 - **Язык анализа** — AI-анализ жёстко задан на русском в prompt
 - **Нет Windows** — setup.sh поддерживает только macOS и Linux
 
@@ -152,6 +152,10 @@ claude-skill-getvideo/
 ### Почему symlink вместо копирования?
 
 Symlink позволяет обновлять скилл через `git pull` без повторной установки.
+
+### Почему mlx-whisper вместо openai-whisper?
+
+openai-whisper требует загрузку моделей через urllib, что ломается из-за SSL на macOS. mlx-whisper использует HuggingFace Hub, работает нативно на Apple Silicon через MLX framework, быстрее и стабильнее.
 
 ### Почему turbo модель по умолчанию?
 

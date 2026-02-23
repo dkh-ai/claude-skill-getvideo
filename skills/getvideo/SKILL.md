@@ -1,15 +1,15 @@
 ---
 name: getvideo
-description: "Use when downloading video from YouTube or other platforms, creating structured folder with metadata, optionally transcribing with whisper and analyzing content"
+description: "Use when downloading video from YouTube or other platforms, creating structured folder with metadata, optionally transcribing with mlx-whisper and analyzing content"
 ---
 
 # getvideo — Download & Analyze Video
 
 ## Overview
 
-Download video via yt-dlp, create structured folder with metadata (`about.md`), optionally transcribe with whisper turbo and produce AI analysis (TLDR, insights, TODOs).
+Download video via yt-dlp, create structured folder with metadata (`about.md`), optionally transcribe with mlx-whisper turbo and produce AI analysis (TLDR, insights, TODOs).
 
-**Requires:** yt-dlp, ffmpeg, whisper (for transcription)
+**Requires:** yt-dlp, ffmpeg, mlx-whisper (for transcription on Apple Silicon)
 
 ## Invocation
 
@@ -35,7 +35,7 @@ digraph getvideo {
   summary [label="Show summary to user"];
   ask_transcribe [label="AskUserQuestion:\nTranscribe?" shape=diamond];
   extract [label="ffmpeg: extract audio.m4a"];
-  whisper [label="whisper turbo → transcript"];
+  whisper [label="mlx_whisper turbo → transcript"];
   save_transcript [label="Write transcript_source.md"];
   analyze [label="Task subagent:\nAI analysis → transcript_output.md"];
   ask_delete [label="AskUserQuestion:\nDelete audio?" shape=diamond];
@@ -121,7 +121,7 @@ digraph getvideo {
    - question: "Нужна транскрибация видео?"
    - header: "Transcribe"
    - options:
-     - "Да" — "Извлечь аудио → whisper turbo → анализ (займёт время)"
+     - "Да" — "Извлечь аудио → mlx-whisper turbo → анализ (займёт время)"
      - "Нет" — "Только видео и about.md"
 
 2. If "Да":
@@ -132,22 +132,22 @@ digraph getvideo {
      "$HOME/getvideo/<folder>/audio.m4a"
    ```
 
-   **b) Transcribe with whisper:**
+   **b) Transcribe with mlx-whisper:**
    ```bash
-   whisper "$HOME/getvideo/<folder>/audio.m4a" \
-     --model turbo \
-     --output_dir "$HOME/getvideo/<folder>/" \
-     --output_format txt \
-     --language auto
+   mlx_whisper "$HOME/getvideo/<folder>/audio.m4a" \
+     --model mlx-community/whisper-turbo \
+     --output-dir "$HOME/getvideo/<folder>/" \
+     --output-format txt
    ```
    Use timeout: 600000ms for long videos.
+   Note: mlx_whisper auto-detects language. No `--language` flag needed.
 
-   **c) Save transcript** — read whisper output `.txt`, write as `transcript_source.md`:
+   **c) Save transcript** — read mlx_whisper output `.txt`, write as `transcript_source.md`:
    ```markdown
    # Transcript: <Video Title>
 
    **Source:** <URL>
-   **Model:** whisper turbo
+   **Model:** mlx-whisper turbo
    **Language:** <detected language>
 
    ---
@@ -210,6 +210,6 @@ Files:
 | URL not recognized by yt-dlp | HALT, show error, suggest checking URL |
 | Video unavailable/private | HALT, show reason from yt-dlp |
 | ffmpeg not installed | HALT: `brew install ffmpeg` |
-| whisper not installed | HALT: `pip3 install openai-whisper` |
-| whisper timeout (>10 min) | Warn user, suggest `--model base` |
+| mlx_whisper not installed | HALT: `pip3 install mlx-whisper` |
+| mlx_whisper timeout (>10 min) | Warn user, suggest smaller model |
 | Folder already exists | Ask: overwrite or add suffix |
