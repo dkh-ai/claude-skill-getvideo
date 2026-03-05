@@ -9,12 +9,15 @@ description: "Use when downloading video from YouTube or other platforms, creati
 
 Download video via yt-dlp, create structured folder with metadata (`about.md`), optionally transcribe with mlx-whisper turbo and produce AI analysis (TLDR, insights, TODOs).
 
+Supports **resume mode** — continue processing from where it stopped (e.g. transcribe a previously downloaded video).
+
 **Requires:** yt-dlp, ffmpeg, mlx-whisper (for transcription on Apple Silicon)
 
 ## Invocation
 
 ```
-/getvideo [URL]
+/getvideo [URL]                    # full pipeline from scratch
+/getvideo resume [folder_path]     # resume from existing folder
 ```
 
 If URL not provided as argument, ask via AskUserQuestion.
@@ -26,7 +29,8 @@ digraph getvideo {
   rankdir=TB;
   node [shape=box];
 
-  start [label="URL provided?" shape=diamond];
+  input [label="Argument type?" shape=diamond];
+  resume [label="RESUME:\nDetect state from folder"];
   ask [label="AskUserQuestion:\nVideo URL"];
   validate [label="Validate URL\nGet metadata via yt-dlp --dump-json"];
   mkdir [label="Create folder:\n~/getvideo/YYYYMMDD-source-title/"];
@@ -42,9 +46,15 @@ digraph getvideo {
   delete_audio [label="rm audio.m4a"];
   final [label="Show final report"];
 
-  start -> ask [label="no"];
-  start -> validate [label="yes"];
+  input -> resume [label="folder path or 'resume'"];
+  input -> ask [label="no argument"];
+  input -> validate [label="URL"];
   ask -> validate;
+  resume -> ask_transcribe [label="has video+about,\nno transcript"];
+  resume -> whisper [label="has audio.m4a,\nno transcript"];
+  resume -> save_transcript [label="has audio.txt,\nno transcript_source.md"];
+  resume -> analyze [label="has transcript_source.md,\nno transcript_output.md"];
+  resume -> final [label="everything done"];
   validate -> mkdir -> download -> about -> summary -> ask_transcribe;
   ask_transcribe -> extract [label="yes"];
   ask_transcribe -> final [label="no"];
@@ -54,6 +64,31 @@ digraph getvideo {
   delete_audio -> final;
 }
 ```
+
+### Phase 0: RESUME DETECTION
+
+Triggered when argument is a folder path (contains `/` or `~/getvideo/`) or starts with "resume".
+
+1. Resolve folder path (expand `~`, accept both full path and folder name under `~/getvideo/`)
+2. Verify folder exists, HALT if not
+3. Read `about.md` to extract metadata:
+   - **Title** — first `# heading` line
+   - **Source URL** — value from `| Source |` row
+   - **Channel** — value from `| Channel |` row
+   - **Duration** — value from `| Duration |` row
+4. List existing files and determine state:
+
+   | Has file | Missing file | Resume from |
+   |----------|-------------|-------------|
+   | `transcript_output.md` | — | Already complete. Show final report |
+   | `transcript_source.md` | `transcript_output.md` | Phase 4d: AI analysis |
+   | `audio.txt` | `transcript_source.md` | Phase 4c: Save transcript |
+   | `audio.m4a` | `audio.txt` | Phase 4b: Whisper transcription |
+   | `video.mp4` + `about.md` | `audio.m4a` | Phase 4: Ask about transcription |
+   | `video.mp4` | `about.md` | Phase 3: Write about.md (needs URL from yt-dlp or user) |
+
+5. Show user: folder path, detected title, current state, what will happen next
+6. Jump to the appropriate phase
 
 ### Phase 1: SETUP
 
@@ -213,3 +248,5 @@ Files:
 | mlx_whisper not installed | HALT: `pip3 install mlx-whisper` |
 | mlx_whisper timeout (>10 min) | Warn user, suggest smaller model |
 | Folder already exists | Ask: overwrite or add suffix |
+| Resume: folder not found | HALT, show path, suggest ls ~/getvideo/ |
+| Resume: no about.md | Ask user for video URL to fetch metadata |
